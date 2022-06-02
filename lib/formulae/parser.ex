@@ -56,26 +56,23 @@ defmodule Formulae.Parser do
   end
 
   defp extract(formula) do
-    formula = String.replace(formula, " -", "-")
-
-    %{found: nil}
-    |> maybe_extract(~r"(?<left>.*)(?<parenth>\([^\(\)]*\))(?<right>.*)", formula)
-    |> maybe_extract(~r"(?<left>[^+]+)(?<func>\+)(?<right>.*)", formula)
-    |> maybe_extract(
-      ~r"^(?<left>(\-*[^\-]+)*)(?<func>\-+)(?<right>[^\-]*)$",
-      formula
-    )
-    |> maybe_extract(~r"(?<left>[^*]+)(?<func>\*)(?<right>.*)", formula)
-    |> maybe_extract(~r"(?<left>.*)(?<func>/)(?<right>[^/]*)", formula)
-    |> Map.get(:found)
+    formula
+    |> String.replace(" -", "-")
+    |> maybe_extract(~r"(?<left>.*)(?<parenth>\([^\(\)]*\))(?<right>.*)")
+    |> maybe_extract(~r"(?<left>[^+]+)(?<func>\+)(?<right>.*)")
+    |> maybe_extract(~r"^(?<left>(\-*[^\-]+)*)(?<func>\-+)(?<right>[^\-]*)$")
+    |> maybe_extract(~r"(?<left>[^*]+)(?<func>\*)(?<right>.*)")
+    |> maybe_extract(~r"(?<left>.*)(?<func>/)(?<right>[^/]*)")
   end
 
-  defp maybe_extract(%{found: nil}, pattern, string) do
-    found = Regex.named_captures(pattern, string)
-    %{found: found}
+  defp maybe_extract(formula, pattern) when is_binary(formula) do
+    case Regex.named_captures(pattern, formula) do
+      nil -> formula
+      result -> result
+    end
   end
 
-  defp maybe_extract(token, _, _), do: token
+  defp maybe_extract(result, _pattern) when is_map(result), do: result
 
   defp parse_argument(string) do
     is_function? = contains_any?(string, ["+", "-", "/", "*"])
