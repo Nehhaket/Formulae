@@ -1,5 +1,5 @@
 defmodule Formulae.Parser do
-  alias Formulae.Node
+  alias Formulae.Nodes.{Function, Number, Parenth}
   alias Formulae.Runner
 
   def is_valid?(formula) when is_binary(formula),
@@ -49,10 +49,11 @@ defmodule Formulae.Parser do
   end
 
   defp parse(%{"left" => left, "right" => right, "func" => func}) do
+    function = parse_function(func)
     left_arg = parse_argument(left)
     right_arg = parse_argument(right)
 
-    %Node{function: func, left: left_arg, right: right_arg}
+    %Function{func: function, left: left_arg, right: right_arg}
   end
 
   defp extract(formula) do
@@ -87,7 +88,7 @@ defmodule Formulae.Parser do
     end
   end
 
-  defp parse_number(""), do: %Node{value: 0}
+  defp parse_number(""), do: %Number{value: 0}
 
   defp parse_number(string) do
     string
@@ -103,7 +104,7 @@ defmodule Formulae.Parser do
     do: contains_any?(string, tail, return or String.contains?(string, head))
 
   defp maybe_parse_float(string) when is_binary(string) do
-    %Node{value: String.to_float(string)}
+    %Number{value: String.to_float(string)}
   rescue
     _ -> string
   end
@@ -111,10 +112,26 @@ defmodule Formulae.Parser do
   defp maybe_parse_float(any), do: any
 
   defp maybe_parse_integer(string) when is_binary(string) do
-    %Node{value: String.to_integer(string)}
+    %Number{value: String.to_integer(string)}
   rescue
     _ -> string
   end
 
   defp maybe_parse_integer(any), do: any
+
+  defp parse_function("+"), do: &Kernel.+/2
+  defp parse_function("-"), do: &Kernel.-/2
+  defp parse_function("/"), do: &Kernel.//2
+  defp parse_function("*"), do: &Kernel.*/2
+
+  defp parse_function(string) do
+    string
+    |> String.replace(" ", "")
+    |> String.length()
+    |> Kernel.rem(2)
+    |> case do
+      0 -> &Kernel.+/2
+      1 -> &Kernel.-/2
+    end
+  end
 end

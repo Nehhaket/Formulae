@@ -14,13 +14,11 @@ defmodule Formulae do
     else
       throw ArgumentError.exception("Invalid formula")
     end
-
   end
 
   defp compute(formula, variables) do
     formula
     |> Parser.run(variables)
-    # |> IO.inspect(label: :node)
     |> Runner.run()
   end
 
