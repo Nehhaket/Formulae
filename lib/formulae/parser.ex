@@ -93,13 +93,10 @@ defmodule Formulae.Parser do
   defp parse_number(""), do: %Node{value: 0}
 
   defp parse_number(string) do
-    number = String.trim(string)
-
-    if is_float?(number) do
-      %Node{value: String.to_float(number)}
-    else
-      %Node{value: String.to_integer(number)}
-    end
+    string
+    |> String.trim()
+    |> maybe_parse_float()
+    |> maybe_parse_integer()
   end
 
   defp contains_any?(string, list), do: contains_any?(string, list, false)
@@ -108,5 +105,19 @@ defmodule Formulae.Parser do
   defp contains_any?(string, [head | tail], return),
     do: contains_any?(string, tail, return or String.contains?(string, head))
 
-  defp is_float?(string), do: String.contains?(string, ".") or String.contains?(string, ",")
+  defp maybe_parse_float(string) when is_binary(string) do
+    %Node{value: String.to_float(string)}
+  rescue
+    _ -> string
+  end
+
+  defp maybe_parse_float(any), do: any
+
+  defp maybe_parse_integer(string) when is_binary(string) do
+    %Node{value: String.to_integer(string)}
+  rescue
+    _ -> string
+  end
+
+  defp maybe_parse_integer(any), do: any
 end
