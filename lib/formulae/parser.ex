@@ -1,20 +1,29 @@
 defmodule Formulae.Parser do
-  alias Formulae.Nodes.{Function, Number, Parenth}
-  alias Formulae.Runner
+  alias Formulae.Nodes.{Function, Number}
 
-  def is_valid?(formula) when is_binary(formula),
-    do: not Regex.match?(~r"[^A-Za-z0-9()+\-*/_ ,.\t\n\r]", formula)
+  def is_valid?(formula) when is_binary(formula) do
+    # check for forbidden characters
+    # check for trailing or leading '_'
+    # check for missing function characters
+    not (Regex.match?(~r"[^A-Za-z0-9()+\-*/_ ,.\t\n\r]", formula) or
+           Regex.match?(~r"([^A-Za-z]+\_)|(\_[^A-Za-z0-9]+)", formula) or
+           Regex.match?(
+             ~r"([^\+\-\/\*\s]+\s+[A-Za-z0-9]+)|([A-Za-z0-9]+\s+[^\+\-\/\*]+)",
+             formula
+           ))
+  end
 
   def is_valid?(_), do: false
 
+  @spec get_variables_list(binary) :: [[binary | {integer, integer}]]
   def get_variables_list(formula) when is_binary(formula) do
     Regex.scan(~r"(?:[A-Za-z][A-Za-z0-9_]*)", formula)
   end
 
   def run(formula, variables \\ %{}) when is_binary(formula) do
     formula
-    |> String.trim()
     |> replace_variables(variables)
+    |> String.replace(" ", "")
     |> extract()
     |> parse()
   end
@@ -34,20 +43,6 @@ defmodule Formulae.Parser do
     replace_variable(tail, replaced_formula)
   end
 
-  defp parse(%{"left" => left, "right" => right, "parenth" => parenth}) do
-    parenthesis =
-      parenth
-      |> String.trim_leading("(")
-      |> String.trim_trailing(")")
-      |> extract()
-      |> parse()
-      |> Runner.run()
-
-    (left <> "#{parenthesis}" <> right)
-    |> extract()
-    |> parse()
-  end
-
   defp parse(%{"left" => left, "right" => right, "func" => func}) do
     function = parse_function(func)
     left_arg = parse_argument(left)
@@ -57,13 +52,36 @@ defmodule Formulae.Parser do
   end
 
   defp extract(formula) do
+
     formula
-    |> String.replace(" -", "-")
-    |> maybe_extract(~r"(?<left>.*)(?<parenth>\([^\(\)]*\))(?<right>.*)")
-    |> maybe_extract(~r"(?<left>[^+]+)(?<func>\+)(?<right>.*)")
-    |> maybe_extract(~r"^(?<left>(\-*[^\-]+)*)(?<func>\-+)(?<right>[^\-]*)$")
-    |> maybe_extract(~r"(?<left>[^*]+)(?<func>\*)(?<right>.*)")
-    |> maybe_extract(~r"(?<left>.*)(?<func>/)(?<right>[^/]*)")
+    # trim encapsulating parenthesis
+    |> maybe_trim(~r"^\((?<inside>(?:.*\(+.+\)+.*)|(?:[^\(\)]+))\)$")
+    # extract addition
+    |> maybe_extract(~r"^(?<left>.+)(?<func>\+)(?<right>[^\(\)]+)$")
+    |> maybe_extract(~r"^(?<left>[^\(\)]+)(?<func>\+)(?<right>.+)$")
+    |> maybe_extract(~r"^(?<left>\(.+\))(?<func>\+)(?<right>\(.*\))$")
+    # extract subtraction
+    |> maybe_extract(~r"^(?<left>(?:[^\-]*)|(?:.*))(?<func>\-+)(?<right>[^\(\)\-]+)$")
+    |> maybe_extract(~r"^(?<left>[^\(\)\-]+)(?<func>\-+)(?<right>.+)$")
+    |> maybe_extract(~r"^(?<left>\(.+\))(?<func>\-+)(?<right>\(.*\))$")
+    |> maybe_extract(~r"^(?<left>)(?<func>\-+)(?<right>\(.*\))$")
+    |> maybe_extract(~r"^(?<left>[^\-]*)(?<func>\-+)(?<right>(?:\(.*\))|(?:\s*[0-9]))$")
+    |> maybe_extract(~r"^(?<left>[^\(\)]+)(?<func>\-+)(?<right>.+)$")
+    # extract multiplication
+    |> maybe_extract(~r"^(?<left>.+)(?<func>\*)(?<right>[^\(\)]*)$")
+    |> maybe_extract(~r"^(?<left>[^\(\)]+)(?<func>\*)(?<right>.*)$")
+    |> maybe_extract(~r"^(?<left>\(.+\))(?<func>\*)(?<right>\(.*\))$")
+    # extract division
+    |> maybe_extract(~r"^(?<left>.+)(?<func>\/)(?<right>[^\(\)]*)$")
+    |> maybe_extract(~r"^(?<left>[^\(\)]+)(?<func>\/)(?<right>.*)$")
+    |> maybe_extract(~r"^(?<left>\(.+\))(?<func>\/)(?<right>\(.*\))$")
+  end
+
+  defp maybe_trim(formula, pattern) do
+    case Regex.named_captures(pattern, formula) do
+      nil -> formula
+      %{"inside" => inside} -> inside
+    end
   end
 
   defp maybe_extract(formula, pattern) when is_binary(formula) do
@@ -80,7 +98,6 @@ defmodule Formulae.Parser do
 
     if is_function? do
       string
-      |> String.trim()
       |> extract()
       |> parse()
     else
@@ -126,7 +143,6 @@ defmodule Formulae.Parser do
 
   defp parse_function(string) do
     string
-    |> String.replace(" ", "")
     |> String.length()
     |> Kernel.rem(2)
     |> case do
