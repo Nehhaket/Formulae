@@ -52,7 +52,6 @@ defmodule Formulae.Parser do
   end
 
   defp extract(formula) do
-
     formula
     # trim encapsulating parenthesis
     |> maybe_trim(~r"^\((?<inside>(?:.*\(+.+\)+.*)|(?:[^\(\)]+))\)$")
@@ -126,6 +125,7 @@ defmodule Formulae.Parser do
     _ -> string
   end
 
+  # doesn't match rn but leaving it just to be able to swap order with `maybe_parse_integer`
   defp maybe_parse_float(any), do: any
 
   defp maybe_parse_integer(string) when is_binary(string) do
